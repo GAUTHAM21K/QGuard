@@ -144,6 +144,15 @@ cd pyky
  flask --app api run --host=0.0.0.0
 ```
 
+#### Step 2: Run the Flutter Application
+Navigate to your chatinng directory and run the Flutter app.
+```
+Bash
+
+cd chatinng
+flutter run
+```
+
 #### Folder Structure
 ```
 chatinng/
