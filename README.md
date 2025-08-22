@@ -1,4 +1,4 @@
-# SecureChat: Post-Quantum Cryptographic Messaging Platform
+# Q-Guard: Post-Quantum Cryptographic Messaging Platform
 
 A Flutter-based cross-platform messaging application implementing CRYSTALS-Kyber post-quantum cryptography for secure end-to-end encrypted communication.
 
