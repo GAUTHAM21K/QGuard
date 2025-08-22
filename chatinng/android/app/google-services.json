@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "100763050650",
+    "project_id": "pqc-chat",
+    "storage_bucket": "pqc-chat.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:100763050650:android:e9bd7a954b087363977523",
+        "android_client_info": {
+          "package_name": "com.example.chatinng"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCJXH1yyVkfYa3xdbM65NNRVdxS4zgBN78"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

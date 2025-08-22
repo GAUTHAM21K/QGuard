@@ -1,0 +1,236 @@
+Background: Dark blue (#1A1A2E)
+
+Text "Log In": White (#FFFFFF)
+
+Username and Password field outlines: Pink (#FF007F)
+
+Placeholder text and icons: White (#FFFFFF)
+
+"Show" button text: White (#FFFFFF)
+
+"Remember me" text: White (#FFFFFF)
+
+"Forgot Password" text: Pink (#FF007F)
+
+"Log in" button: Pink (#FF007F)
+
+"Log in" button text: White (#FFFFFF)
+
+                ElevatedButton(onPressed: () {},
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                  minimumSize: Size(400, 60)),
+                  child: Text('Log In')),
+
+                  TextField( decoration: InputDecoration(
+                  labelText: 'New Password',
+                  labelStyle: TextStyle(color: Colors.white),
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.key,color:Colors.white,),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.red),borderRadius: BorderRadius.circular(25.0))
+                  ),),
+
+                  TextField( decoration: InputDecoration(
+                  labelText: 'Confirm Password',
+                  labelStyle: TextStyle(color: Colors.white),
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(Icons.key,color:Colors.white,),
+                  enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.red),borderRadius: BorderRadius.circular(25.0))
+                  ),),
+
+                  TextField( style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                  labelText: 'First Name',
+                  labelStyle: TextStyle(color: Colors.white),  
+                  prefixIcon: Icon(Icons.account_circle, color: Colors.white,),              
+                  border: OutlineInputBorder(borderSide: BorderSide(color: Colors.red),borderRadius: BorderRadius.circular(25.0)),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.red),borderRadius: BorderRadius.circular(25.0)),),),
+
+                  Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Sign Up',
+                  style: TextStyle(
+                    color:Colors.white,
+                    fontSize: 40,
+                    fontWeight: FontWeight.bold,
+                    ),),),
+
+                    Row(
+                  children: [
+                    TextField( style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                  labelText: 'First Name',
+                  labelStyle: TextStyle(color: Colors.white),                
+                  border: OutlineInputBorder(borderSide: BorderSide(color: Colors.red),borderRadius: BorderRadius.circular(25.0)),
+                  prefixIcon: Icon(Icons.account_circle, color: Colors.white,),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.red),borderRadius: BorderRadius.circular(25.0)),),),
+
+                  TextField( style: TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                  labelText: 'Last Name',
+                  labelStyle: TextStyle(color: Colors.white),                
+                  border: OutlineInputBorder(borderSide: BorderSide(color: Colors.red),borderRadius: BorderRadius.circular(25.0)),
+                  prefixIcon: Icon(Icons.account_circle, color: Colors.white,),
+                  focusedBorder: OutlineInputBorder(borderSide: BorderSide(color: Colors.red),borderRadius: BorderRadius.circular(25.0)),),)
+                  ],
+                ),
+
+                try{
+      final List<String> signInMethods = await _auth.fetchSignInMethodsForEmail(email);
+      if(signInMethods.isEmpty){
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('User already exists with this email')),
+        );
+        
+      }else{
+      UserCredential userCredential = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('successfully signed in ')),
+        );
+      return userCredential;
+    }
+    }on FirebaseAuthException catch (e) {
+      throw Exception(e.code);
+    }
+    return 
+  }
+
+           void textField(BuildContext context) {
+  setState(() {
+    final _auth = AuthServices();
+    
+    if (_passContrl.text == _conpassContol.text && _passContrl.text.isNotEmpty) {
+      if (_emailControl.text.isNotEmpty) {
+        _auth.signupWithEmailAndPassword(context, _emailControl.text, _passContrl.text).then((userCredential) {
+          if (userCredential != null) {
+            Navigator.pushNamed(context, '/login');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Successfully signed in')),
+            );
+          }
+        }).catchError((e) {
+          if (e is FirebaseAuthException) {
+            if (e.code == 'email-already-in-use') {
+              showDialog(context: context, builder: (context) => const AlertDialog(
+                title: Text("User exists"),
+              ));
+            } else if (e.code == 'invalid-email') {
+              showDialog(context: context, builder: (context) => const AlertDialog(
+                title: Text("Invalid email"),
+              ));
+            } else if (e.code == 'weak-password') {
+              showDialog(context: context, builder: (context) => const AlertDialog(
+                title: Text("Weak password"),
+              ));
+            } else {
+              showDialog(context: context, builder: (context) => const AlertDialog(
+                title: Text("Failed to sign up"),
+              ));
+            }
+          } else {
+            showDialog(context: context, builder: (context) => const AlertDialog(
+              title: Text("An unknown error occurred"),
+            ));
+          }
+        });
+      } else {
+        showDialog(context: context, builder: (context) => const AlertDialog(
+          title: Text("Enter email"),
+        ));
+      }
+    } else {
+      showDialog(context: context, builder: (context) => const AlertDialog(
+        title: Text("Passwords don't match"),
+      ));
+    }
+  });
+}
+
+
+final _auth = AuthServices();
+
+      if((_passContrl.text == _conpassContol.text)&&(_passContrl.text.isNotEmpty)){
+
+          if((_emailControl.text.isNotEmpty)){
+      _auth.signupwithemailandpass(context,_emailControl.text, _passContrl.text).then((UserCredential){
+
+        if(UserCredential != null){
+                Navigator.pushNamed(context, '/login');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('successfully signed in ')),);}}
+      ;
+      }else{
+        showDialog(context: context, builder: (context) => const AlertDialog(
+        title: Text("enter email"),
+      ));
+      }
+
+        })).catchError((e){
+          if(e.code == 'email-already-in-use'){
+            showDialog(context: context, builder: (context) => const AlertDialog(
+        title: Text("user Exists "),
+      ) );
+          }
+          else if(e.code == 'invalid-email'){
+            showDialog(context: context, builder: (context) => const AlertDialog(
+        title: Text("Invalid email"),
+      ) );
+          }
+          else if(e.code == 'weak-password'){
+            showDialog(context: context, builder: (context) => const AlertDialog(
+        title: Text("weakpassword"),
+      ) );
+          }
+          else{
+            ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('error signing in')),);
+          }
+        });
+      }else{
+        showDialog(context: context, builder: (context) => const AlertDialog(
+        title: Text("passwords dont match"),
+      ) );
+      }
+          
+    });
+  
+
+  void textField(BuildContext context) {
+  setState(() {
+    final _auth = AuthServices();
+
+    if (_passContrl.text == _conpassContol.text && _passContrl.text.isNotEmpty) {
+      if (_emailControl.text.isNotEmpty) {
+        _auth.signupwithemailandpass(context, _emailControl.text, _passContrl.text).then((userCredential) {
+          if (userCredential != null) {
+            Navigator.pushNamed(context, '/login');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Successfully signed in')),
+            );
+          }
+        }).catchError((e) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(' $e')),
+            );
+        });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Enter email')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Passwords don\'t match')),
+      );
+    }
+  });
+}
+Map<String, dynamic> userData, BuildContext context){
+        return usertile(
+          text: userData["email"],
+          onTap: (){
+
+
+          },
+        );
