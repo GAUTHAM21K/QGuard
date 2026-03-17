@@ -18,7 +18,7 @@ class Homepage extends StatefulWidget {
   State<Homepage> createState() => _HomepageState();
 }
 
-class _HomepageState extends State<Homepage> {
+class _HomepageState extends State<Homepage> with WidgetsBindingObserver {
   final AuthServices _authServices = AuthServices();
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -26,6 +26,29 @@ class _HomepageState extends State<Homepage> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final ChatServices _chatServices = ChatServices();
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Set status to online when app starts
+    _authServices.updateUserStatus(true);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _authServices.updateUserStatus(true);
+    } else {
+      _authServices.updateUserStatus(false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -175,28 +198,119 @@ class _HomepageState extends State<Homepage> {
   }
 
   Widget buildUserList() {
-    return StreamBuilder(
+    return StreamBuilder<List<Map<String, dynamic>>>(
       stream: _chatServices.getUsersStream(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
+          print('Error in user stream: ${snapshot.error}');
           return Center(
-            child: Text(
-              "Error loading users",
-              style: TextStyle(color: Colors.grey[300]),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, color: Colors.grey[300], size: 48),
+                SizedBox(height: 16),
+                Text(
+                  "Error loading users",
+                  style: TextStyle(color: Colors.grey[300], fontSize: 16),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  "Please check your connection",
+                  style: TextStyle(
+                    color: Colors.grey[300]!.withOpacity(0.7),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
             ),
           );
         }
+
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Center(
-            child: CircularProgressIndicator(color: Colors.grey[300]),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: Colors.grey[300]),
+                SizedBox(height: 16),
+                Text(
+                  "Loading users...",
+                  style: TextStyle(color: Colors.grey[300]!.withOpacity(0.7)),
+                ),
+              ],
+            ),
           );
         }
+
+        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.people_outline, color: Colors.grey[300], size: 48),
+                SizedBox(height: 16),
+                Text(
+                  "No users found",
+                  style: TextStyle(color: Colors.grey[300], fontSize: 16),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  "Start by adding some contacts",
+                  style: TextStyle(
+                    color: Colors.grey[300]!.withOpacity(0.7),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Filter out null or invalid user data
+        final validUsers =
+            snapshot.data!.where((userData) {
+              return userData != null &&
+                  userData['email'] != null &&
+                  userData['uid'] != null &&
+                  userData['email'] is String &&
+                  userData['uid'] is String;
+            }).toList();
+
+        if (validUsers.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.warning_outlined, color: Colors.grey[300], size: 48),
+                SizedBox(height: 16),
+                Text(
+                  "No valid users found",
+                  style: TextStyle(color: Colors.grey[300], fontSize: 16),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  "User data may be corrupted",
+                  style: TextStyle(
+                    color: Colors.grey[300]!.withOpacity(0.7),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
         return ListView(
           padding: EdgeInsets.symmetric(vertical: 8),
           children:
-              snapshot.data!
+              validUsers
                   .map<Widget>(
                     (userData) => buildUserListItem(userData, context),
+                  )
+                  .where(
+                    (widget) =>
+                        widget is! Container ||
+                        (widget as Container).child != null,
                   )
                   .toList(),
         );
@@ -208,7 +322,17 @@ class _HomepageState extends State<Homepage> {
     Map<String, dynamic> userData,
     BuildContext context,
   ) {
-    if (userData['email'] != _auth.currentUser!.email) {
+    // Add null safety checks
+    final String? userEmail = userData['email'] as String?;
+    final String? userUid = userData['uid'] as String?;
+    final String? currentUserEmail = _auth.currentUser?.email;
+
+    // Skip if essential data is missing
+    if (userEmail == null || userUid == null || currentUserEmail == null) {
+      return Container(); // Return empty container for invalid data
+    }
+
+    if (userEmail != currentUserEmail) {
       return Container(
         margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         decoration: BoxDecoration(
@@ -228,14 +352,12 @@ class _HomepageState extends State<Homepage> {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: _getProfileColor(userData['email']),
+                  color: _getProfileColor(userEmail),
                   shape: BoxShape.circle,
                 ),
                 child: Center(
                   child: Text(
-                    userData['email'].isNotEmpty
-                        ? userData['email'][0].toUpperCase()
-                        : 'U',
+                    userEmail.isNotEmpty ? userEmail[0].toUpperCase() : 'U',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 18,
@@ -252,7 +374,10 @@ class _HomepageState extends State<Homepage> {
                   width: 12,
                   height: 12,
                   decoration: BoxDecoration(
-                    color: Colors.green,
+                    color:
+                        userData['is_online'] == true
+                            ? Colors.green
+                            : Colors.grey,
                     shape: BoxShape.circle,
                     border: Border.all(color: Color(0xFF1A1A1A), width: 2),
                   ),
@@ -261,7 +386,7 @@ class _HomepageState extends State<Homepage> {
             ],
           ),
           title: Text(
-            userData['email'],
+            userEmail,
             style: TextStyle(
               color: Colors.grey[300],
               fontSize: 16,
@@ -269,9 +394,12 @@ class _HomepageState extends State<Homepage> {
             ),
           ),
           subtitle: Text(
-            'Online',
+            userData['is_online'] == true ? 'Online' : 'Offline',
             style: TextStyle(
-              color: Colors.grey[300]!.withOpacity(0.7),
+              color:
+                  userData['is_online'] == true
+                      ? Colors.green
+                      : Colors.grey[300]!.withOpacity(0.5),
               fontSize: 12,
             ),
           ),
@@ -287,7 +415,7 @@ class _HomepageState extends State<Homepage> {
                 ),
               ),
               // Unread message badge (example)
-              if (userData['email'].contains('leo')) // Example condition
+              if (userEmail.contains('leo')) // Example condition
                 Container(
                   margin: EdgeInsets.only(top: 4),
                   padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -311,10 +439,8 @@ class _HomepageState extends State<Homepage> {
               context,
               MaterialPageRoute(
                 builder:
-                    (context) => ChatPage(
-                      receiverEmail: userData['email'],
-                      receiverID: userData['uid'],
-                    ),
+                    (context) =>
+                        ChatPage(receiverEmail: userEmail, receiverID: userUid),
               ),
             );
           },

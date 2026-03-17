@@ -58,82 +58,192 @@ class _ChatPageState extends State<ChatPage> {
 
   // Load messages from shared preferences
   Future<void> _loadLocalMessages() async {
+    print('\n📱 === LOADING LOCAL MESSAGES FROM STORAGE ===');
     try {
-      if (_prefs == null) await _initPrefs();
+      if (_prefs == null) {
+        print('🔧 Initializing SharedPreferences...');
+        await _initPrefs();
+      }
 
       final chatRoomId = _getChatRoomId();
+      print('🏠 Chat room ID: $chatRoomId');
+      print('🔍 Searching for stored messages...');
+
       final messagesJson = _prefs!.getString(chatRoomId);
       if (messagesJson != null) {
+        print('✅ Found stored messages');
+        print('📦 JSON data length: ${messagesJson.length} characters');
+
         // Decode the JSON string back into a List
         final List<dynamic> decodedList = jsonDecode(messagesJson);
         setState(() {
           _locallySentMessages = List<Map<String, dynamic>>.from(decodedList);
         });
+
+        print('📝 Loaded ${_locallySentMessages.length} local messages');
+        print('✅ Local messages loaded successfully');
+      } else {
+        print('📭 No stored messages found for this chat');
       }
     } catch (e) {
-      print("Error loading messages from storage: $e");
+      print("❌ Error loading messages from storage: $e");
     } finally {
       setState(() {
         _isLoading = false; // Stop the loading indicator
       });
+      print('🎉 Local message loading process completed\n');
     }
   }
 
   // Save messages to shared preferences
   Future<void> _saveLocalMessages() async {
+    print('\n💾 === SAVING MESSAGES TO LOCAL STORAGE ===');
     try {
-      if (_prefs == null) await _initPrefs();
+      if (_prefs == null) {
+        print('🔧 Initializing SharedPreferences...');
+        await _initPrefs();
+      }
 
       final chatRoomId = _getChatRoomId();
+      print('🏠 Chat room ID: $chatRoomId');
+      print('📝 Messages to save: ${_locallySentMessages.length}');
+
       // Encode the list of messages into a JSON string
       final messagesJson = jsonEncode(_locallySentMessages);
+      print('📦 JSON data length: ${messagesJson.length} characters');
+
       await _prefs!.setString(chatRoomId, messagesJson);
+      print('✅ Messages saved to SharedPreferences successfully');
     } catch (e) {
-      print("Error saving messages to storage: $e");
+      print("❌ Error saving messages to storage: $e");
     }
   }
 
   // Decrypts incoming messages
   Future<String> _decryptMessage(DocumentSnapshot doc) async {
-    // ... (This function remains unchanged)
+    print('\n🔓 === STARTING MESSAGE DECRYPTION PROCESS ===');
+    final stopwatch = Stopwatch()..start();
     final String docId = doc.id;
-    if (_decryptedCache.containsKey(docId)) return _decryptedCache[docId]!;
+
+    print('📄 Document ID: $docId');
+
+    // Check cache first
+    if (_decryptedCache.containsKey(docId)) {
+      print('⚡ Message found in decryption cache');
+      return _decryptedCache[docId]!;
+    }
+
     try {
+      print('🔍 Step 1: Analyzing message data...');
       final Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-      if (!(data['encrypted'] == true)) return data['message'] as String? ?? '';
+
+      // Check if message is encrypted
+      if (!(data['encrypted'] == true)) {
+        print('📝 Message is not encrypted, returning plaintext');
+        return data['message'] as String? ?? '';
+      }
+
+      print('🔐 Message is encrypted, proceeding with decryption');
+
+      // Extract encryption metadata
       final encMeta = data['encryption'] as Map<String, dynamic>?;
       final String? kyberCiphertextB64 =
           encMeta != null ? encMeta['kyber_ciphertext'] as String? : null;
       final String? ivB64 = encMeta != null ? encMeta['iv'] as String? : null;
+      final String? algorithm =
+          encMeta != null ? encMeta['algorithm'] as String? : null;
+
+      print('🔧 Encryption algorithm: ${algorithm ?? 'Unknown'}');
+      print(
+        '📦 Kyber ciphertext length: ${kyberCiphertextB64?.length ?? 0} chars',
+      );
+      print('🎲 IV length: ${ivB64?.length ?? 0} chars');
+
       if (kyberCiphertextB64 == null || ivB64 == null) {
+        print('❌ Missing encryption metadata, returning original message');
         return data['message'] as String? ?? '';
       }
+
+      print('\n🔍 Step 2: Loading private key for decapsulation...');
       final String currentUid = _auth.currentUser!.uid;
+      print('👤 Current user UID: $currentUid');
+
       final String? privateKeyB64 = await _kyberService.loadPrivateKey(
         currentUid,
       );
-      if (privateKeyB64 == null) throw Exception('private key missing');
+      if (privateKeyB64 == null) {
+        print('❌ Private key not found for user');
+        throw Exception('private key missing');
+      }
+
+      print('✅ Private key loaded successfully');
+
+      print('\n🔓 Step 3: Kyber decapsulation to recover AES key...');
       final String aesKeyB64 = await _kyberService.decapsulate(
         kyberCiphertextB64,
         privateKeyB64,
       );
+
+      print('✅ AES session key recovered from Kyber decapsulation');
+
+      print('\n🔐 Step 4: Setting up AES-GCM decryption...');
       final keyBytes = base64.decode(aesKeyB64);
-      final String cipherB64 = data['message'] as String;
+      final String? cipherB64 = data['message'] as String?;
+      if (cipherB64 == null || cipherB64.isEmpty) {
+        print('❌ No encrypted message content found');
+        throw Exception('Missing encrypted message content');
+      }
+
       final List<int> cipherBytes = base64.decode(cipherB64);
       final List<int> ivBytes = base64.decode(ivB64);
+
+      print('🔑 AES key size: ${keyBytes.length * 8} bits');
+      print('🔒 Encrypted message size: ${cipherBytes.length} bytes');
+      print('🎲 IV size: ${ivBytes.length} bytes');
+
       final key = encrypt.Key(Uint8List.fromList(keyBytes));
       final iv = encrypt.IV(Uint8List.fromList(ivBytes));
       final encrypter = encrypt.Encrypter(
         encrypt.AES(key, mode: encrypt.AESMode.gcm),
       );
+
+      print('🔧 AES-GCM decrypter initialized');
+
+      print('\n🔓 Step 5: Decrypting message content...');
+      final decryptStopwatch = Stopwatch()..start();
+
       final decrypted = encrypter.decrypt(
         encrypt.Encrypted(Uint8List.fromList(cipherBytes)),
         iv: iv,
       );
+
+      decryptStopwatch.stop();
+      stopwatch.stop();
+
+      print(
+        "✅ AES-GCM decryption completed in ${decryptStopwatch.elapsedMilliseconds}ms",
+      );
+      print('📝 Decrypted message length: ${decrypted.length} characters');
+      print(
+        '📝 Message preview: ${decrypted.length > 50 ? decrypted.substring(0, 50) + '...' : decrypted}',
+      );
+      print("⏱️ Total decryption process: ${stopwatch.elapsedMilliseconds}ms");
+
+      print('\n💾 Step 6: Caching decrypted message...');
       _decryptedCache[docId] = decrypted;
+      print('✅ Message cached for future access');
+
+      print('\n🎉 === MESSAGE DECRYPTION COMPLETED SUCCESSFULLY ===');
+      print('🔓 Post-quantum secure message successfully decrypted\n');
+
       return decrypted;
     } catch (e, st) {
-      print('❌ Decryption failed for doc ${doc.id}: $e\n$st');
+      stopwatch.stop();
+      print('\n❌ === MESSAGE DECRYPTION FAILED ===');
+      print('💥 Error details: $e');
+      print('📍 Stack trace: $st');
+      print('🔧 Check private key, Kyber library, and message format');
+      print("⏱️ Failed after: ${stopwatch.elapsedMilliseconds}ms\n");
       rethrow;
     }
   }
@@ -143,23 +253,38 @@ class _ChatPageState extends State<ChatPage> {
     if (_textEditingController.text.isNotEmpty) {
       String messageText = _textEditingController.text;
 
+      print('\n📤 === SENDING MESSAGE LOCALLY & TO FIRESTORE ===');
+      print(
+        '📝 Message: "${messageText.length > 50 ? messageText.substring(0, 50) + '...' : messageText}"',
+      );
+      print('📏 Message length: ${messageText.length} characters');
+
       final messageData = {
         "text": messageText,
         // Use millisecondsSinceEpoch for JSON compatibility
         "timestamp": DateTime.now().millisecondsSinceEpoch,
       };
 
+      print('\n💾 Step 1: Adding message to local storage...');
       // Add the message to our local list for immediate display
       setState(() {
         _locallySentMessages.add(messageData);
       });
       _textEditingController.clear();
+      print('✅ Message added to local list for immediate display');
 
+      print('\n🔒 Step 2: Saving to secure local storage...');
       // Save the updated list to secure storage
       await _saveLocalMessages();
+      print('✅ Message saved to SharedPreferences');
 
+      print('\n🔐 Step 3: Starting encrypted transmission to Firestore...');
       // Send the encrypted message to the database in the background
       await _chatServices.sendMessage(widget.receiverID, messageText);
+      print('✅ Message encrypted and sent to Firestore successfully');
+
+      print('\n🎉 === MESSAGE SENDING COMPLETED ===');
+      print('📱 Message displayed locally and securely transmitted\n');
     }
   }
 
@@ -210,25 +335,48 @@ class _ChatPageState extends State<ChatPage> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                Row(
-                  children: [
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    SizedBox(width: 6),
-                    Text(
-                      'Online',
-                      style: TextStyle(
-                        color: Colors.grey[300]!.withOpacity(0.7),
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+                StreamBuilder<DocumentSnapshot>(
+                  stream:
+                      FirebaseFirestore.instance
+                          .collection('users')
+                          .doc(widget.receiverID)
+                          .snapshots(),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) {
+                      return Text(
+                        'Offline',
+                        style: TextStyle(
+                          color: Colors.grey[300]!.withOpacity(0.7),
+                          fontSize: 12,
+                        ),
+                      );
+                    }
+                    var data = snapshot.data!.data() as Map<String, dynamic>?;
+                    bool isOnline = data?['is_online'] ?? false;
+                    return Row(
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: isOnline ? Colors.green : Colors.grey,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        SizedBox(width: 6),
+                        Text(
+                          isOnline ? 'Online' : 'Offline',
+                          style: TextStyle(
+                            color:
+                                isOnline
+                                    ? Colors.grey[300]!.withOpacity(0.9)
+                                    : Colors.grey[300]!.withOpacity(0.5),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -305,7 +453,10 @@ class _ChatPageState extends State<ChatPage> {
             if (message['source'] == 'firestore') {
               return buildMessageItem(message['data']);
             } else {
-              return _buildSentMessageItem(message['text']);
+              return _buildSentMessageItem(
+                message['text'],
+                message['timestamp'],
+              );
             }
           },
         );
@@ -391,7 +542,7 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   // Updated sent message item widget with new styling
-  Widget _buildSentMessageItem(String text) {
+  Widget _buildSentMessageItem(String text, Timestamp timestamp) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16.0),
       child: Row(
@@ -425,7 +576,7 @@ class _ChatPageState extends State<ChatPage> {
                 ),
                 SizedBox(height: 4),
                 Text(
-                  _formatTime(DateTime.now()),
+                  _formatTime(timestamp),
                   style: TextStyle(
                     color: Colors.grey[300]!.withOpacity(0.6),
                     fontSize: 11,
